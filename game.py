@@ -1,4 +1,6 @@
+
 import tkinter as tk
+import time
 
 
 class App():
@@ -39,6 +41,47 @@ class App():
     def draw_loop(self):
         self.canvas.pack()
         self.root.after(self.TIME_DRAW_INTERVAL_MS, self.draw_loop)
+
+
+
+class Game():
+    
+    def __init__(self, canvas_width, canvas_height):
+        
+        # Constants
+        self.time_between_jumps_sec = 0.5 # time before jump recharges (in seconds)
+        self.bird_size = 5 # diameter
+        self.bird_x = canvas_width / 2
+
+        self.gravity = 10
+        self.jump_speed = 100 # added vertical velocity when jump initiated
+        self.velocity = 0 # vertical velocity of bird
+        
+        # Variables - assigned default values
+        self.last_jump_timestamp = 0
+        self.score = 0
+        self.can_jump = True
+        
+        self.bird_y = canvas_height / 2
+
+
+    def jump(self):
+        if self.can_jump:
+            print("Jump")
+            self.can_jump = False
+            self.velocity += self.jump_speed
+        else:
+            print("Can't jump")
+
+    
+    def physics_update(self):
+        self.bird_y += self.velocity - self.gravity
+
+        # Make jump avaliable again if enough time passed
+        if not self.can_jump:
+            if time.time() - self.time_between_jumps_sec > self.last_jump_timestamp:
+                print("Jump avaliable")
+                self.can_jump = True
 
 
 
