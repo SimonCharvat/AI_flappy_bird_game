@@ -20,7 +20,7 @@ class App():
         self.COLOR_APPLE = "#c20000"  # Dark red
 
         self.TIME_DRAW_INTERVAL_MS = 10
-        self.TIME_ENGINE_INTERVAL_MS = 500
+        self.TIME_ENGINE_INTERVAL_MS = 100
 
 
 
@@ -55,13 +55,17 @@ class Game():
     def create_bird_instance(self):
         self.bird_instances.append(Bird(self.canvas_width, self.canvas_height))
 
+    def physics_update_all_birds(self):
+        for instance in self.bird_instances:
+            instance.physics_update()
+
 
 class Bird():
         
     def __init__(self, canvas_width, canvas_height):
         
         # Constants
-        self.time_between_jumps_sec = 0.5 # time before jump recharges (in seconds)
+        self.updates_between_jumps = 5 # 1/(time between updates in sec) * 0.5 = jump each 0.5 second
         self.bird_size = 5 # diameter
         self.bird_x = canvas_width / 2
 
@@ -72,7 +76,7 @@ class Bird():
         # Variables - assigned default values
         self.opaque = False # if bird should be displayed partialy opaque
 
-        self.last_jump_timestamp = 0
+        self.updates_since_last_jump = 0
         self.score = 0
         self.can_jump = True
         
@@ -83,6 +87,7 @@ class Bird():
         if self.can_jump:
             print("Jump")
             self.can_jump = False
+            self.updates_since_last_jump = 0
             self.velocity += self.jump_speed
         else:
             print("Can't jump")
@@ -90,10 +95,10 @@ class Bird():
     
     def physics_update(self):
         self.bird_y += self.velocity - self.gravity
-
+        self.updates_since_last_jump += 1
         # Make jump avaliable again if enough time passed
         if not self.can_jump:
-            if time.time() - self.time_between_jumps_sec > self.last_jump_timestamp:
+            if self.updates_since_last_jump > self.updates_between_jumps:
                 print("Jump avaliable")
                 self.can_jump = True
 
