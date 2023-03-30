@@ -47,6 +47,18 @@ class App():
 class Game():
     
     def __init__(self, canvas_width, canvas_height):
+        self.bird_instances = []
+        
+        self.canvas_width = canvas_width
+        self.canvas_height = canvas_height
+
+    def create_bird_instance(self):
+        self.bird_instances.append(Bird(self.canvas_width, self.canvas_height))
+
+
+class Bird():
+        
+    def __init__(self, canvas_width, canvas_height):
         
         # Constants
         self.time_between_jumps_sec = 0.5 # time before jump recharges (in seconds)
@@ -58,6 +70,8 @@ class Game():
         self.velocity = 0 # vertical velocity of bird
         
         # Variables - assigned default values
+        self.opaque = False # if bird should be displayed partialy opaque
+
         self.last_jump_timestamp = 0
         self.score = 0
         self.can_jump = True
@@ -82,7 +96,6 @@ class Game():
             if time.time() - self.time_between_jumps_sec > self.last_jump_timestamp:
                 print("Jump avaliable")
                 self.can_jump = True
-
 
 
 
