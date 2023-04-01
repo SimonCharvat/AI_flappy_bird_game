@@ -1,6 +1,5 @@
 
 import tkinter as tk
-import time
 from PIL import Image, ImageTk
 #import neat
 
