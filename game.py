@@ -1,6 +1,7 @@
 
 import tkinter as tk
 from PIL import Image, ImageTk
+from math import ceil
 #import neat
 
 
@@ -53,6 +54,7 @@ class App():
 
     def engine_loop(self):
         self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
+        self.game.check_for_collisions()
         self.game.physics_update_all_birds()
 
     def draw_loop(self):
@@ -69,19 +71,44 @@ class Game():
     
     def __init__(self, canvas, ENGINE_INTERVAL_MS):
         self.bird_instances = []
+        self.pillar_instances = []
+        
         self.ENGINE_INTERVAL_MS = ENGINE_INTERVAL_MS
         self.canvas = canvas
         self.canvas_width = self.canvas.winfo_width()
         self.canvas_height = self.canvas.winfo_height()
 
-        self.bird_size = round(self.canvas_height * 0.07)
+        
+        self.bird_size_px = 40 # pixels
 
+        self.pillar_width = 90 # pixels
+        self.pillar_distance = 3 * self.pillar_width
+        self.number_of_pillars = 1 + ceil(self.canvas_width / (self.pillar_distance + self.pillar_width))
+        self.pillar_gap_size = 0.15 # vertical distance between pillars (as coeficient between 0 and 1)
+        
         self.images = {
-            "bird": ImageTk.PhotoImage(Image.open("bird.png").resize((self.bird_size, self.bird_size), Image.ANTIALIAS))
+            "bird": ImageTk.PhotoImage(Image.open("bird.png").resize((self.bird_size_px, self.bird_size_px), Image.Resampling.LANCZOS)),
+            "pillar_body_bottom": ImageTk.PhotoImage(Image.open("pillar_body.png").resize((self.pillar_width, round(self.canvas_height / 2)), Image.Resampling.LANCZOS)),
+            "pillar_body_top": ImageTk.PhotoImage(Image.open("pillar_body.png").resize((self.pillar_width, round(self.canvas_height / 2)), Image.Resampling.LANCZOS).rotate(180)),
+            "pillar_head_bottom": ImageTk.PhotoImage(Image.open("pillar_head.png").resize((self.pillar_width, self.pillar_width), Image.Resampling.LANCZOS)),
+            "pillar_head_top": ImageTk.PhotoImage(Image.open("pillar_head.png").resize((self.pillar_width, self.pillar_width), Image.Resampling.LANCZOS).rotate(180))
         }
+
+        for i in range(self.number_of_pillars):
+            self.create_pillar_instance()
         
     def create_bird_instance(self):
-        self.bird_instances.append(Bird(self.canvas_width, self.canvas_height, self.ENGINE_INTERVAL_MS, self.images["bird"]))
+        self.bird_instances.append(Bird(self.canvas_width, self.canvas_height, self.ENGINE_INTERVAL_MS, self.images["bird"], self.bird_size_px))
+
+    def create_pillar_instance(self):
+        self.pillar_instances.append(Pillar(self.images["pillar_head_top"],
+                                            self.images["pillar_head_bottom"],
+                                            self.images["pillar_body_bottom"],
+                                            self.images["pillar_body_top"],
+                                            self.canvas,
+                                            self.pillar_width,
+                                            self.images["pillar_body_top"].height(),
+                                            self.pillar_gap_size))
 
     def physics_update_all_birds(self):
         for instance in self.bird_instances:
@@ -91,18 +118,117 @@ class Game():
         for instance in self.bird_instances:
             instance.graphics_update(self.canvas)
 
+    def check_for_collisions(self):
+        for bird_instance in self.bird_instances:
+            for pillar_instance in self.pillar_instances:
+                if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
+                    bird_instance.death()
+
+
+class Pillar():
+    def __init__(self, image_head_top, image_head_bottom, image_body_bottom, image_body_top, canvas, pillar_width, pillar_body_height, gap_size):
+        
+        self.pillar_body_height = pillar_body_height
+        self.pillar_head_size_px = pillar_width
+        self.pillar_head_size_rel = self.pillar_head_size_px / canvas.winfo_height()
+
+        self.canvas = canvas
+        
+        # creating canvas objects to get IDs, but are placed out of screen
+        self.canvas_id_bottom_head = canvas.create_image(-10*pillar_width, 0, anchor="n",image=image_head_bottom)
+        self.canvas_id_bottom_body = canvas.create_image(-10*pillar_width, 0, anchor="n",image=image_body_bottom)
+        self.canvas_id_top_head = canvas.create_image(-10*pillar_width, 0, anchor="s",image=image_head_top)
+        self.canvas_id_top_body = canvas.create_image(-10*pillar_width, 0, anchor="s",image=image_body_top)
+
+        self.bottom_head_inner_y = None
+        self.top_head_inner_y = None
+
+        self.gap_size = gap_size # vertical distance between pillars (as coeficient between 0 and 1)
+        
+        
+        # TODO delete, for debugging only
+        self.center_position = [0.5, 0.5]
+        self.allign_by_center_position()
+
+        
+
+    def allign_by_center_position(self):
+        _canvas_width = self.canvas.winfo_width()
+        _canvas_height = self.canvas.winfo_height()
+        
+        # Calculating the inner y-coordinate (hitbox) as value between 0 and 1 (0 = bottom side, 1 = top side)
+        self.bottom_head_inner_y = self.center_position[1] - self.gap_size / 2
+        self.top_head_inner_y = self.center_position[1] + self.gap_size / 2
+
+        print((self.bottom_head_inner_y, self.top_head_inner_y))
+        print((self.bottom_head_inner_y* _canvas_height, self.top_head_inner_y* _canvas_height))
+
+
+        # top pillar
+        self.canvas.moveto(self.canvas_id_top_head,
+                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            _canvas_height - self.top_head_inner_y * _canvas_height - self.pillar_head_size_px)
+
+        self.canvas.moveto(self.canvas_id_top_body,
+                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            _canvas_height - self.top_head_inner_y * _canvas_height - self.pillar_head_size_px - self.pillar_body_height)
+        
+        # bottom pillar
+        self.canvas.moveto(self.canvas_id_bottom_head,
+                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            _canvas_height - self.bottom_head_inner_y * _canvas_height + self.pillar_head_size_px / 2)
+
+        self.canvas.moveto(self.canvas_id_bottom_body,
+                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            _canvas_height - self.bottom_head_inner_y * _canvas_height + self.pillar_head_size_px)
+        
+    def check_for_bird_collision(self, bird_y, bird_diameter):
+        # 0.5 = middle of screen
+        # TODO: bird left and right could be calculated only once for all pillars (pass it as argument of this function)
+        pillar_left_x = self.center_position[0] - self.pillar_head_size_rel / 2
+        pillar_right_x = self.center_position[0] + self.pillar_head_size_rel / 2
+        bird_left_x = 0.5 - bird_diameter
+        bird_right_x = 0.5 + bird_diameter
+        
+        # if it is even possible to collide on x-axis
+        if bird_right_x >= pillar_left_x or bird_left_x <= pillar_right_x:
+            # if bird fully inside pillar -> only check y-axis collision
+            if bird_left_x >= pillar_left_x and bird_right_x <= pillar_right_x:
+                print("fully between pillars")
+                # top side collision check
+                if bird_y + bird_diameter >= self.top_head_inner_y:
+                    print("top")
+                    return True
+                # bottom side collision check
+                if bird_y - bird_diameter <= self.bottom_head_inner_y:
+                    print("bottom")
+                    return True
+            else: # if can collide, but must check distance between objects on both axis TODO
+                pass
+        else:
+            return False
+        
+        #raise ValueError("Collision detection failed - no return")
+        
+        #print(f"Collision detected with pillar {(self.canvas_id_bottom_head, self.canvas_id_top_head)}")
+        
+        
+            
+
 
 
 class Bird():
-        
-    def __init__(self, canvas_width, canvas_height, ENGINE_INTERVAL_MS, bird_image):
+    def __init__(self, canvas_width, canvas_height, ENGINE_INTERVAL_MS, bird_image, bird_size_px):
         
         # Constants
         self.engine_interval_ms = ENGINE_INTERVAL_MS
         self.updates_between_jumps = 1000 * 0.2 / ENGINE_INTERVAL_MS # 1/(time between updates in sec) * 0.2 = jump each 0.2 second
-        self.bird_size = 5 # diameter
         self.bird_x = 0.5
         self.bird_image = bird_image
+
+        self.bird_width_px = bird_size_px
+        self.bird_width_rel = bird_size_px / canvas_height # relative (as coeficient between 0 and 1)
+        self.bird_diameter_rel = self.bird_width_rel / 2
 
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
@@ -122,6 +248,8 @@ class Bird():
         
         self.bird_y = 0.5
 
+    def death(self):
+        print(f"Bird {self.canvas_id} had died!")
 
     def jump(self):
         if self.can_jump:
@@ -140,7 +268,7 @@ class Bird():
         self.bird_y += self.velocity
         self.updates_since_last_jump += 1
         
-        print(f"Bird {self.canvas_id}: ({round(self.bird_x, 4)}, {round(self.bird_y, 4)}), velocity: {round(self.velocity, 4)}")
+        #print(f"Bird {self.canvas_id}: ({round(self.bird_x, 4)}, {round(self.bird_y, 4)}), velocity: {round(self.velocity, 4)}")
 
         # Make jump avaliable again if enough time passed
         if not self.can_jump:
@@ -151,14 +279,25 @@ class Bird():
     
     def graphics_update(self, canvas):
         if self.canvas_id == None:
-            self.canvas_id = canvas.create_image(self.canvas_width - self.bird_x * self.canvas_width,
-                                                 self.canvas_height - self.bird_y * self.canvas_height,
+            self.canvas_id = canvas.create_image(self.canvas_width - self.bird_x * self.canvas_width - self.bird_width_px / 2,
+                                                 self.canvas_height - self.bird_y * self.canvas_height - self.bird_width_px / 2,
                                                  anchor="center",
                                                  image=self.bird_image)
         canvas.moveto(self.canvas_id,
-                      self.canvas_width - self.bird_x * self.canvas_width,
-                      self.canvas_height - self.bird_y * self.canvas_height)
+                      self.canvas_width - self.bird_x * self.canvas_width - self.bird_width_px / 2,
+                      self.canvas_height - self.bird_y * self.canvas_height - self.bird_width_px / 2)
 
+
+def get_distance_between_circle_rectangle(object1, object2):
+    """
+    Arguments:
+    object1, object2: list
+        list with 2D coordinates [x, y]
+    Returns:
+        distance between 2 objects
+    """
+    
+    return ((object1[0] - object2[0]) ** 2 + (object1[1] - object2[1]) ** 2) ** (0.5)
 
 
 if __name__ == "__main__":
