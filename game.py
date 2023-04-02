@@ -190,7 +190,7 @@ class Pillar():
         bird_left_x = 0.5 - bird_diameter
         bird_right_x = 0.5 + bird_diameter
         
-        # if it is even possible to collide on x-axis
+        # if it is even possible to collide on x-axis - optimalizead as it does not have to check collision with every bird
         if bird_right_x >= pillar_left_x or bird_left_x <= pillar_right_x:
             # if bird fully inside pillar -> only check y-axis collision
             if bird_left_x >= pillar_left_x and bird_right_x <= pillar_right_x:
