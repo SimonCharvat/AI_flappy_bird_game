@@ -9,11 +9,11 @@ class App():
     
     def __init__(self):
 
-        self.ROOT_WIDTH = 1000
-        self.ROOT_HEIGHT = 800
+        self.ROOT_WIDTH = 800
+        self.ROOT_HEIGHT = 700
 
-        self.CANVAS_WIDTH = 800
-        self.CANVAS_HEIGHT = 600
+        self.CANVAS_WIDTH = 600
+        self.CANVAS_HEIGHT = 500
 
         self.COLOR_BACKGROUND = "#000000"  # Black
         self.COLOR_GRID = "#999999"  # Grey
@@ -84,7 +84,7 @@ class Game():
         self.pillar_width = 90 # pixels
         self.pillar_distance = 3 * self.pillar_width
         self.number_of_pillars = 1 + ceil(self.canvas_width / (self.pillar_distance + self.pillar_width))
-        self.pillar_gap_size = 0.15 # vertical distance between pillars (as coeficient between 0 and 1)
+        self.pillar_gap_size = 0.2 # vertical distance between pillars (as coeficient between 0 and 1)
         
         self.images = {
             "bird": ImageTk.PhotoImage(Image.open("bird.png").resize((self.bird_size_px, self.bird_size_px), Image.Resampling.LANCZOS)),
@@ -147,7 +147,7 @@ class Pillar():
         
         
         # TODO delete, for debugging only
-        self.center_position = [0.5, 0.5]
+        self.center_position = [0.8, 0.7]
         self.allign_by_center_position()
 
         
@@ -161,25 +161,26 @@ class Pillar():
         self.top_head_inner_y = self.center_position[1] + self.gap_size / 2
 
         print((self.bottom_head_inner_y, self.top_head_inner_y))
-        print((self.bottom_head_inner_y* _canvas_height, self.top_head_inner_y* _canvas_height))
+        print((self.bottom_head_inner_y * _canvas_height, self.top_head_inner_y * _canvas_height))
 
+        print((_canvas_width, _canvas_height))
 
         # top pillar
         self.canvas.moveto(self.canvas_id_top_head,
-                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
                             _canvas_height - self.top_head_inner_y * _canvas_height - self.pillar_head_size_px)
 
         self.canvas.moveto(self.canvas_id_top_body,
-                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
                             _canvas_height - self.top_head_inner_y * _canvas_height - self.pillar_head_size_px - self.pillar_body_height)
         
         # bottom pillar
         self.canvas.moveto(self.canvas_id_bottom_head,
-                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
-                            _canvas_height - self.bottom_head_inner_y * _canvas_height + self.pillar_head_size_px / 2)
+                            self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            _canvas_height - self.bottom_head_inner_y * _canvas_height)
 
         self.canvas.moveto(self.canvas_id_bottom_body,
-                            _canvas_width - self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
+                            self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
                             _canvas_height - self.bottom_head_inner_y * _canvas_height + self.pillar_head_size_px)
         
     def check_for_bird_collision(self, bird_y, bird_diameter):
