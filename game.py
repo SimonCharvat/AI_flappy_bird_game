@@ -120,6 +120,11 @@ class Game():
 
     def check_for_collisions(self):
         for bird_instance in self.bird_instances:
+            # Check for collision with ground (bottom)
+            if bird_instance.bird_y - bird_instance.bird_diameter_rel <= 0:
+                print("Bird hit the ground")
+                bird_instance.death()
+            # Check fir collision with pillars
             for pillar_instance in self.pillar_instances:
                 if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
                     bird_instance.death()
@@ -183,7 +188,7 @@ class Pillar():
                             self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
                             _canvas_height - self.bottom_head_inner_y * _canvas_height + self.pillar_head_size_px)
         
-    def check_for_bird_collision(self, bird_y, bird_diameter):
+    def check_for_bird_collision(self, bird_y, bird_diameter):     
         # 0.5 = middle of screen
         # TODO: bird left and right could be calculated only once for all pillars (pass it as argument of this function)
         pillar_left_x = self.center_position[0] - self.pillar_head_size_rel / 2
@@ -198,11 +203,11 @@ class Pillar():
                 print("fully between pillars")
                 # top side collision check
                 if bird_y + bird_diameter >= self.top_head_inner_y:
-                    print("top")
+                    print("Pillar - top hit")
                     return True
                 # bottom side collision check
                 if bird_y - bird_diameter <= self.bottom_head_inner_y:
-                    print("bottom")
+                    print("Pillar - bottom hit")
                     return True
             else: # if can collide, but must check distance between objects on both axis TODO
                 pass
@@ -247,7 +252,7 @@ class Bird():
         self.score = 0
         self.can_jump = True
         
-        self.bird_y = 0.5
+        self.bird_y = 0.7
 
     def death(self):
         print(f"Bird {self.canvas_id} had died!")
