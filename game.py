@@ -2,6 +2,7 @@
 import tkinter as tk
 from PIL import Image, ImageTk
 from math import ceil, sqrt
+from random import uniform
 #import neat
 
 
@@ -56,6 +57,7 @@ class App():
         self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
         self.game.check_for_collisions()
         self.game.physics_update_all_birds()
+        self.game.physics_move_all_pillars()
 
     def draw_loop(self):
         self.game.graphics_update_all_birds()
@@ -72,6 +74,9 @@ class Game():
     def __init__(self, canvas, ENGINE_INTERVAL_MS):
         self.bird_instances = []
         self.pillar_instances = []
+
+        self.scroll_speed_per_sec = 0.01
+        self.scroll_speed_per_tick = self.scroll_speed_per_sec / (1 / (ENGINE_INTERVAL_MS / 1000))
         
         self.ENGINE_INTERVAL_MS = ENGINE_INTERVAL_MS
         self.canvas = canvas
@@ -82,8 +87,9 @@ class Game():
         self.bird_size_px = 40 # pixels
 
         self.pillar_width = 90 # pixels
-        self.pillar_distance = 3 * self.pillar_width
-        self.number_of_pillars = 1 + ceil(self.canvas_width / (self.pillar_distance + self.pillar_width))
+        self.pillar_distance_px = 3 * self.pillar_width
+        self.pillar_distance_rel = self.pillar_distance_px / self.canvas_width
+        self.number_of_pillars = 1 + ceil(self.canvas_width / (self.pillar_distance_px + self.pillar_width))
         self.pillar_gap_size = 0.25 # vertical distance between pillars (as coeficient between 0 and 1)
         
         self.images = {
@@ -114,6 +120,10 @@ class Game():
         for instance in self.bird_instances:
             instance.physics_update()
     
+    def physics_move_all_pillars(self):
+        for pillar_instance in self.pillar_instances:
+            pillar_instance.center_position[0] -= self.scroll_speed_per_tick
+    
     def graphics_update_all_birds(self):
         for instance in self.bird_instances:
             instance.graphics_update(self.canvas)
@@ -132,6 +142,15 @@ class Game():
             for pillar_instance in self.pillar_instances:
                 if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
                     bird_instance.death()
+        
+    def order_pillars(self):
+        for pillar_instance in self.pillar_instances:
+            if pillar_instance.center_position[0] + pillar_instance.pillar_dimensions[0] < 0:
+                print("Pillar out of bounds - moved to the end")
+                pillar_instance.center_position[0] = self.pillar_instances[-1].center_position[0] + self.pillar_distance_rel
+                pillar_instance.randomize_height()
+                
+                self.pillar_instances.append(self.pillar_instances.pop(0))
 
 
 class Pillar():
@@ -159,8 +178,8 @@ class Pillar():
         self.pillar_dimensions = [self.pillar_head_size_rel,
                                   self.pillar_body_height_rel + self.pillar_head_size_rel]
         
-        # TODO delete, for debugging only
-        self.center_position = [0.8, 0.7]
+        self.center_position = [0.9, None]
+        self.randomize_height()
         self.allign_by_center_position()
 
         
@@ -195,15 +214,18 @@ class Pillar():
         self.canvas.moveto(self.canvas_id_bottom_body,
                             self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
                             _canvas_height - self.bottom_head_inner_y * _canvas_height + self.pillar_head_size_px)
-        
+    
+    def randomize_height(self):
+        self.center_position[1] = uniform(0.1, 0.9)
+
     def check_for_bird_collision(self, bird_y, bird_diameter):     
         # 0.5 = middle of screen
         # TODO: bird left and right could be calculated only once for all pillars (pass it as argument of this function)
 
-        top_pillar_pos = [self.center_position - self.pillar_dimensions[0] / 2,
+        top_pillar_pos = [self.center_position[0] - self.pillar_dimensions[0] / 2,
                           self.top_head_inner_y + self.pillar_dimensions[1]]
         
-        bot_pillar_pos = [self.center_position - self.pillar_dimensions[0] / 2,
+        bot_pillar_pos = [self.center_position[0] - self.pillar_dimensions[0] / 2,
                           self.bottom_head_inner_y]
 
 
