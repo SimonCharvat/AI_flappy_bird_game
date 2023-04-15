@@ -1,7 +1,7 @@
 
 import tkinter as tk
 from PIL import Image, ImageTk
-from math import ceil
+from math import ceil, sqrt
 #import neat
 
 
@@ -84,7 +84,7 @@ class Game():
         self.pillar_width = 90 # pixels
         self.pillar_distance = 3 * self.pillar_width
         self.number_of_pillars = 1 + ceil(self.canvas_width / (self.pillar_distance + self.pillar_width))
-        self.pillar_gap_size = 0.2 # vertical distance between pillars (as coeficient between 0 and 1)
+        self.pillar_gap_size = 0.25 # vertical distance between pillars (as coeficient between 0 and 1)
         
         self.images = {
             "bird": ImageTk.PhotoImage(Image.open("bird.png").resize((self.bird_size_px, self.bird_size_px), Image.Resampling.LANCZOS)),
@@ -124,7 +124,11 @@ class Game():
             if bird_instance.bird_y - bird_instance.bird_diameter_rel <= 0:
                 print("Bird hit the ground")
                 bird_instance.death()
-            # Check fir collision with pillars
+            # Check for collision with sky (top)
+            if bird_instance.bird_y + bird_instance.bird_diameter_rel >= 1:
+                print("Bird hit the ground")
+                bird_instance.death()
+            # Check for collision with pillars
             for pillar_instance in self.pillar_instances:
                 if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
                     bird_instance.death()
@@ -133,7 +137,9 @@ class Game():
 class Pillar():
     def __init__(self, image_head_top, image_head_bottom, image_body_bottom, image_body_top, canvas, pillar_width, pillar_body_height, gap_size):
         
-        self.pillar_body_height = pillar_body_height
+        self.pillar_body_height_px = pillar_body_height
+        self.pillar_body_height_rel = self.pillar_body_height_px / canvas.winfo_height()
+        
         self.pillar_head_size_px = pillar_width
         self.pillar_head_size_rel = self.pillar_head_size_px / canvas.winfo_height()
 
@@ -150,6 +156,8 @@ class Pillar():
 
         self.gap_size = gap_size # vertical distance between pillars (as coeficient between 0 and 1)
         
+        self.pillar_dimensions = [self.pillar_head_size_rel,
+                                  self.pillar_body_height_rel + self.pillar_head_size_rel]
         
         # TODO delete, for debugging only
         self.center_position = [0.8, 0.7]
@@ -177,7 +185,7 @@ class Pillar():
 
         self.canvas.moveto(self.canvas_id_top_body,
                             self.center_position[0] * _canvas_width - self.pillar_head_size_px / 2,
-                            _canvas_height - self.top_head_inner_y * _canvas_height - self.pillar_head_size_px - self.pillar_body_height)
+                            _canvas_height - self.top_head_inner_y * _canvas_height - self.pillar_head_size_px - self.pillar_body_height_px)
         
         # bottom pillar
         self.canvas.moveto(self.canvas_id_bottom_head,
@@ -191,13 +199,24 @@ class Pillar():
     def check_for_bird_collision(self, bird_y, bird_diameter):     
         # 0.5 = middle of screen
         # TODO: bird left and right could be calculated only once for all pillars (pass it as argument of this function)
-        pillar_left_x = self.center_position[0] - self.pillar_head_size_rel / 2
-        pillar_right_x = self.center_position[0] + self.pillar_head_size_rel / 2
+
+        top_pillar_pos = [self.center_position - self.pillar_dimensions[0] / 2,
+                          self.top_head_inner_y + self.pillar_dimensions[1]]
+        
+        bot_pillar_pos = [self.center_position - self.pillar_dimensions[0] / 2,
+                          self.bottom_head_inner_y]
+
+
         bird_left_x = 0.5 - bird_diameter
         bird_right_x = 0.5 + bird_diameter
         
+        pillar_left_x = self.center_position[0] - self.pillar_head_size_rel / 2
+        pillar_right_x = self.center_position[0] + self.pillar_head_size_rel / 2
+
         # if it is even possible to collide on x-axis - optimalizead as it does not have to check collision with every bird
         if bird_right_x >= pillar_left_x or bird_left_x <= pillar_right_x:
+            """
+            Commented, because check_collision_circle_rectangle can be used universally
             # if bird fully inside pillar -> only check y-axis collision
             if bird_left_x >= pillar_left_x and bird_right_x <= pillar_right_x:
                 print("fully between pillars")
@@ -209,8 +228,13 @@ class Pillar():
                 if bird_y - bird_diameter <= self.bottom_head_inner_y:
                     print("Pillar - bottom hit")
                     return True
-            else: # if can collide, but must check distance between objects on both axis TODO
-                pass
+                return False
+            else: # if can collide, but must check distance between objects on both axis:
+            """
+            top_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, top_pillar_pos, self.pillar_dimensions)
+            bot_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, bot_pillar_pos, self.pillar_dimensions)
+                
+            return (top_rectangle_collision or bot_rectangle_collision)
         else:
             return False
         
@@ -294,17 +318,37 @@ class Bird():
                       self.canvas_height - self.bird_y * self.canvas_height - self.bird_width_px / 2)
 
 
-def get_distance_between_circle_rectangle(object1, object2):
-    """
-    Arguments:
-    object1, object2: list
-        list with 2D coordinates [x, y]
-    Returns:
-        distance between 2 objects
-    """
-    
-    return ((object1[0] - object2[0]) ** 2 + (object1[1] - object2[1]) ** 2) ** (0.5)
 
+def check_collision_circle_rectangle(circle_center, circle_radius, rectangle_top_left, rectangle_dim):
+    """
+    Check for collision between a circle and a rectangle in 2D space.
+
+    Arguments:
+    circle_center: list
+        X,Y-coordinates of the circle center [x, y]
+    circle_radius: float
+        Radius of the circle
+    rectangle_top_left: list
+        X,Y-coordinates of the rectangle top-left corner [x, y]
+    rectangle_dim: list
+        Dimensions of rectangle [widht, height]
+
+    Returns:
+        bool: True if the circle and rectangle collide, False otherwise
+    """
+
+    # Find the closest point to the circle within the rectangle
+    closest_x = max(rectangle_top_left[0], min(circle_center[0], rectangle_top_left[0] + rectangle_dim[0]))
+    closest_y = max(rectangle_top_left[1], min(circle_center[1], rectangle_top_left[1] + rectangle_dim[1]))
+
+    # Calculate the distance between the closest point and the circle's center
+    distance = sqrt((closest_x - circle_center[0]) ** 2 + (closest_y - circle_center[1]) ** 2)
+
+    # If the distance is less than the circle's radius, they collide
+    if distance < circle_radius:
+        return True
+    else:
+        return False
 
 if __name__ == "__main__":
     app = App()
