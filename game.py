@@ -58,6 +58,7 @@ class App():
         self.game.check_for_collisions()
         self.game.physics_update_all_birds()
         self.game.physics_move_all_pillars()
+        self.game.order_pillars()
 
     def draw_loop(self):
         self.game.graphics_update_all_birds()
@@ -102,12 +103,12 @@ class Game():
         }
 
         for i in range(self.number_of_pillars):
-            self.create_pillar_instance()
+            self.create_pillar_instance(i)
         
     def create_bird_instance(self):
         self.bird_instances.append(Bird(self.canvas_width, self.canvas_height, self.ENGINE_INTERVAL_MS, self.images["bird"], self.bird_size_px))
 
-    def create_pillar_instance(self):
+    def create_pillar_instance(self, pillar_rank):
         self.pillar_instances.append(Pillar(self.images["pillar_head_top"],
                                             self.images["pillar_head_bottom"],
                                             self.images["pillar_body_bottom"],
@@ -115,7 +116,9 @@ class Game():
                                             self.canvas,
                                             self.pillar_width,
                                             self.images["pillar_body_top"].height(),
-                                            self.pillar_gap_size))
+                                            self.pillar_gap_size,
+                                            pillar_rank,
+                                            self.pillar_distance_rel))
 
     def physics_update_all_birds(self):
         for instance in self.bird_instances:
@@ -157,10 +160,11 @@ class Game():
                 pillar_instance.randomize_height()
                 
                 self.pillar_instances.append(self.pillar_instances.pop(0))
+                break
 
 
 class Pillar():
-    def __init__(self, image_head_top, image_head_bottom, image_body_bottom, image_body_top, canvas, pillar_width, pillar_body_height, gap_size):
+    def __init__(self, image_head_top, image_head_bottom, image_body_bottom, image_body_top, canvas, pillar_width, pillar_body_height, gap_size, x_pos_rank, pillar_x_distance):
         
         self.pillar_body_height_px = pillar_body_height
         self.pillar_body_height_rel = self.pillar_body_height_px / canvas.winfo_height()
@@ -184,7 +188,7 @@ class Pillar():
         self.pillar_dimensions = [self.pillar_head_size_rel,
                                   self.pillar_body_height_rel + self.pillar_head_size_rel]
         
-        self.center_position = [0.9, None]
+        self.center_position = [1 + x_pos_rank * pillar_x_distance, None]
         self.randomize_height()
         self.allign_by_center_position()
 
@@ -222,7 +226,7 @@ class Pillar():
                             _canvas_height - self.bottom_head_inner_y * _canvas_height + self.pillar_head_size_px)
     
     def randomize_height(self):
-        self.center_position[1] = uniform(0.1, 0.9)
+        self.center_position[1] = uniform(0.2, 0.8)
 
     def check_for_bird_collision(self, bird_y, bird_diameter):     
         # 0.5 = middle of screen
