@@ -3,7 +3,6 @@ import tkinter as tk
 from PIL import Image, ImageTk
 from math import ceil, sqrt
 from random import uniform
-#import neat
 
 
 class App():
