@@ -61,6 +61,7 @@ class App():
 
     def draw_loop(self):
         self.game.graphics_update_all_birds()
+        self.game.graphics_update_all_pillars()
         self.root.after(self.TIME_DRAW_INTERVAL_MS, self.draw_loop)
 
     def start_flappy_bird(self):
@@ -75,8 +76,8 @@ class Game():
         self.bird_instances = []
         self.pillar_instances = []
 
-        self.scroll_speed_per_sec = 0.01
-        self.scroll_speed_per_tick = self.scroll_speed_per_sec / (1 / (ENGINE_INTERVAL_MS / 1000))
+        self.scroll_speed_per_sec = 0.2
+        self.scroll_speed_per_tick = self.scroll_speed_per_sec / (1000 / ENGINE_INTERVAL_MS)
         
         self.ENGINE_INTERVAL_MS = ENGINE_INTERVAL_MS
         self.canvas = canvas
@@ -123,10 +124,15 @@ class Game():
     def physics_move_all_pillars(self):
         for pillar_instance in self.pillar_instances:
             pillar_instance.center_position[0] -= self.scroll_speed_per_tick
+            print(pillar_instance.center_position)
     
     def graphics_update_all_birds(self):
         for instance in self.bird_instances:
             instance.graphics_update(self.canvas)
+
+    def graphics_update_all_pillars(self):
+        for instance in self.pillar_instances:
+            instance.allign_by_center_position()
 
     def check_for_collisions(self):
         for bird_instance in self.bird_instances:
