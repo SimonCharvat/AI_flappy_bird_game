@@ -3,6 +3,7 @@ import tkinter as tk
 from PIL import Image, ImageTk
 from math import ceil, sqrt
 from random import uniform
+import neat
 
 
 class App():
@@ -58,6 +59,7 @@ class App():
         self.game.physics_update_all_birds()
         self.game.physics_move_all_pillars()
         self.game.order_pillars()
+        self.game.make_AI_decision()
 
     def draw_loop(self):
         self.game.graphics_update_all_birds()
@@ -66,14 +68,25 @@ class App():
 
     def start_flappy_bird(self):
         self.game = Game(self.canvas, self.TIME_ENGINE_INTERVAL_MS)
-        self.game.create_bird_instance()
+        #self.game.create_bird_instance()
 
 
 
 class Game():
     
-    def __init__(self, canvas, ENGINE_INTERVAL_MS):
+    def __init__(self, canvas, ENGINE_INTERVAL_MS, genomes, config):
+        
+        
         self.bird_instances = []
+        self.network_instances = []
+        self.genome_instances = []
+
+        for i, genome in enumerate(genomes):
+            net = neat.nn.FeedForwardNetwork(genome, config)
+            self.network_instances.append(net)
+            self.genome_instances.append(genome)
+            self.create_bird_instance()
+        
         self.pillar_instances = []
 
         self.scroll_speed_per_sec = 0.2
@@ -104,6 +117,31 @@ class Game():
         for i in range(self.number_of_pillars):
             self.create_pillar_instance(i)
         
+    
+    def make_AI_decision(self):
+        active_pillar_index = None
+        for i, pillar in enumerate(self.pillar_instances):
+            if pillar.active_pillar:
+                active_pillar_index = i
+                break
+        
+        if active_pillar_index == None:
+            raise ValueError("No active pillar!")
+        
+        top_pillar_inner_y = self.pillar_instances[active_pillar_index].top_head_inner_y
+        bot_pillar_inner_y = self.pillar_instances[active_pillar_index].bottom_head_inner_y
+
+        for i in range(len(self.bird_instances)):
+            
+            bird_y = self.bird_instances[i].bird_y
+            top_distance = abs(top_pillar_inner_y - bird_y)
+            bot_distance = abs(bot_pillar_inner_y - bird_y)
+            
+            output = self.network_instances[i].activate(bird_y, top_distance, bot_distance)
+            
+            if output > 0.5:
+                self.bird_instances[i].jump()
+
     def create_bird_instance(self):
         self.bird_instances.append(Bird(self.canvas_width, self.canvas_height, self.ENGINE_INTERVAL_MS, self.images["bird"], self.bird_size_px))
 
@@ -122,6 +160,7 @@ class Game():
     def physics_update_all_birds(self):
         for instance in self.bird_instances:
             instance.physics_update()
+            instance.increse_bird_score(0.01)
     
     def physics_move_all_pillars(self):
         for pillar_instance in self.pillar_instances:
@@ -150,6 +189,20 @@ class Game():
             for pillar_instance in self.pillar_instances:
                 if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
                     bird_instance.death()
+    
+    def remove_dead_birds(self):
+        to_be_removed = []
+        for i, bird in enumerate(self.bird_instances):
+            if not bird.alive:
+                to_be_removed.append(i)
+        
+        if len(to_be_removed) > 0:
+            for index in to_be_removed:
+                self.bird_instances.pop(index)
+                self.network_instances.pop(index)
+                self.genome_instances.pop(index)
+
+                
         
     def order_pillars(self):
         for pillar_instance in self.pillar_instances:
@@ -159,7 +212,13 @@ class Game():
                 pillar_instance.randomize_height()
                 
                 self.pillar_instances.append(self.pillar_instances.pop(0))
+                self.add_score_to_birds()
                 break
+    
+    def add_score_to_birds(self):
+        for bird in self.bird_instances:
+            if bird.alive:
+                bird.score += 1
 
 
 class Pillar():
@@ -170,6 +229,9 @@ class Pillar():
         
         self.pillar_head_size_px = pillar_width
         self.pillar_head_size_rel = self.pillar_head_size_px / canvas.winfo_height()
+
+        # If this pipe is the closest to the bird (middle of screen)
+        self.active_pipe = False
 
         self.canvas = canvas
         
@@ -226,6 +288,12 @@ class Pillar():
     
     def randomize_height(self):
         self.center_position[1] = uniform(0.2, 0.8)
+    
+    def update_active_pipe_status(self):
+        if self.center_position[0] > 0.5 and self.center_position[0] < (0.5 + self.pillar_body_height_rel):
+            self.active_pipe = True
+        else:
+            self.active_pipe = False
 
     def check_for_bird_collision(self, bird_y, bird_diameter):     
         # 0.5 = middle of screen
@@ -309,7 +377,11 @@ class Bird():
         
         self.bird_y = 0.7
 
+        self.alive = True
+
     def death(self):
+        self.alive = False
+        self.score -= 1
         print(f"Bird {self.canvas_id} had died!")
 
     def jump(self):
@@ -321,6 +393,8 @@ class Bird():
         else:
             print("Can't jump")
 
+    def increse_bird_score(self, increment):
+        self.score += increment
     
     def physics_update(self):
         self.velocity -= self.gravity * (self.engine_interval_ms / 1000)
