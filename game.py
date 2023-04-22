@@ -5,11 +5,14 @@ from math import ceil, sqrt
 from random import uniform
 import neat
 from time import sleep
+import numpy as np
 
 
 class App():
     
     def __init__(self):
+        
+        self.game_exists = False
 
         self.ROOT_WIDTH = 800
         self.ROOT_HEIGHT = 700
@@ -39,6 +42,10 @@ class App():
         self.button_jump = tk.Button(self.root, text="Jump", command=self.jump_first_bird_instance)
         self.button_jump.pack()
 
+        # label showing current score of top 3 birds
+        self.label_score = tk.Label(self.root, text="aaaaaaaa")
+        self.label_score.pack()
+
         # blank canvas widget
         self.canvas = tk.Canvas(background=self.COLOR_BACKGROUND)
         self.canvas.config(width=self.CANVAS_WIDTH, height=self.CANVAS_HEIGHT)
@@ -55,6 +62,7 @@ class App():
     def start_engine_loop(self):
         self.button_start["state"] = "disabled"
         self.engine_loop()
+        self.low_frequency_loop()
 
     def jump_first_bird_instance(self):
         self.game.bird_instances[0].jump()
@@ -66,6 +74,12 @@ class App():
         self.game.order_pillars()
         self.game.make_AI_decision()
         self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
+    
+    def low_frequency_loop(self):
+        if self.game_exists:
+            self.game.update_score_label()
+        time_interval = int(self.TIME_ENGINE_INTERVAL_MS / 3)
+        self.root.after(time_interval, self.low_frequency_loop)
 
     def draw_loop(self):
         self.game.graphics_update_all_birds()
@@ -73,22 +87,23 @@ class App():
         self.root.after(self.TIME_DRAW_INTERVAL_MS, self.draw_loop)
 
     def start_flappy_bird(self, genomes, config):
-        self.game = Game(self.canvas, self.TIME_ENGINE_INTERVAL_MS, genomes, config)
+        self.game = Game(self.canvas, self.TIME_ENGINE_INTERVAL_MS, genomes, config, self.label_score)
         self.start_engine_loop()
+        self.game_exists = True
         #self.game.create_bird_instance()
 
 
 
 class Game():
     
-    def __init__(self, canvas, ENGINE_INTERVAL_MS, genomes, config):
+    def __init__(self, canvas, ENGINE_INTERVAL_MS, genomes, config, label_score_widget = None):
         
         
         self.bird_instances = []
         self.network_instances = []
         self.genome_instances = []
 
-
+        self.label_score_widget = label_score_widget
         
         self.pillar_instances = []
 
@@ -129,9 +144,19 @@ class Game():
             self.create_bird_instance()
         
     
+    def update_score_label(self):
+        if self.label_score_widget != None:
+            scores = []
+            for bird in self.bird_instances:
+                scores.append(bird.score)
+            
+            top_scores = np.array(sorted(scores, reverse=True)[:min(3, len(scores))])
+            top_scores = np.round(top_scores, 3)
+            self.label_score_widget.config(text = f"{top_scores}")
+            #self.label_score_widget.pack()
+
     def make_AI_decision(self):
         active_pillar_index = None
-        print(len(self.pillar_instances))
         for i, pillar in enumerate(self.pillar_instances):
             if pillar.active_pillar:
                 active_pillar_index = i
