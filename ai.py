@@ -1,4 +1,4 @@
-
+import game
 import neat
 import os
 
@@ -11,23 +11,19 @@ class AI():
 
 
 
-def run_AI():
+def eval_genomes(genomes, config):
+    pass
+
+
+def run_neat():
+    
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config.txt')
 
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                             neat.DefaultSpeciesSet, neat.DefaultStagnation,
                             config_path)
-    
-    run_neat(config)
 
-
-def eval_genomes(genomes, config):
-    pass
-
-
-def run_neat(config):
-    
     p = neat.Population(config)
 
     # In case I want to restart from checkpoint

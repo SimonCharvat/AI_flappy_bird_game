@@ -1,9 +1,10 @@
-
+import os
 import tkinter as tk
 from PIL import Image, ImageTk
 from math import ceil, sqrt
 from random import uniform
 import neat
+from time import sleep
 
 
 class App():
@@ -46,6 +47,11 @@ class App():
         # update root in order to fully create widgets before using them
         self.root.update()
 
+        
+        #sleep(1)
+
+        #self.start_engine_loop()
+
     def start_engine_loop(self):
         self.button_start["state"] = "disabled"
         self.engine_loop()
@@ -54,20 +60,21 @@ class App():
         self.game.bird_instances[0].jump()
 
     def engine_loop(self):
-        self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
         self.game.check_for_collisions()
         self.game.physics_update_all_birds()
         self.game.physics_move_all_pillars()
         self.game.order_pillars()
         self.game.make_AI_decision()
+        self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
 
     def draw_loop(self):
         self.game.graphics_update_all_birds()
         self.game.graphics_update_all_pillars()
         self.root.after(self.TIME_DRAW_INTERVAL_MS, self.draw_loop)
 
-    def start_flappy_bird(self):
-        self.game = Game(self.canvas, self.TIME_ENGINE_INTERVAL_MS)
+    def start_flappy_bird(self, genomes, config):
+        self.game = Game(self.canvas, self.TIME_ENGINE_INTERVAL_MS, genomes, config)
+        self.start_engine_loop()
         #self.game.create_bird_instance()
 
 
@@ -81,11 +88,7 @@ class Game():
         self.network_instances = []
         self.genome_instances = []
 
-        for i, genome in enumerate(genomes):
-            net = neat.nn.FeedForwardNetwork(genome, config)
-            self.network_instances.append(net)
-            self.genome_instances.append(genome)
-            self.create_bird_instance()
+
         
         self.pillar_instances = []
 
@@ -116,10 +119,19 @@ class Game():
 
         for i in range(self.number_of_pillars):
             self.create_pillar_instance(i)
+            self.pillar_instances[i].update_active_pillar_status()
+        
+
+        for i, (genome_id, genome) in enumerate(genomes):
+            net = neat.nn.FeedForwardNetwork.create(genome, config)
+            self.network_instances.append(net)
+            self.genome_instances.append(genome)
+            self.create_bird_instance()
         
     
     def make_AI_decision(self):
         active_pillar_index = None
+        print(len(self.pillar_instances))
         for i, pillar in enumerate(self.pillar_instances):
             if pillar.active_pillar:
                 active_pillar_index = i
@@ -137,9 +149,9 @@ class Game():
             top_distance = abs(top_pillar_inner_y - bird_y)
             bot_distance = abs(bot_pillar_inner_y - bird_y)
             
-            output = self.network_instances[i].activate(bird_y, top_distance, bot_distance)
+            neuron_output = self.network_instances[i].activate([bird_y, top_distance, bot_distance])[0]
             
-            if output > 0.5:
+            if neuron_output > 0.5:
                 self.bird_instances[i].jump()
 
     def create_bird_instance(self):
@@ -165,7 +177,7 @@ class Game():
     def physics_move_all_pillars(self):
         for pillar_instance in self.pillar_instances:
             pillar_instance.center_position[0] -= self.scroll_speed_per_tick
-            print(pillar_instance.center_position)
+            #print(pillar_instance.center_position)
     
     def graphics_update_all_birds(self):
         for instance in self.bird_instances:
@@ -179,16 +191,14 @@ class Game():
         for bird_instance in self.bird_instances:
             # Check for collision with ground (bottom)
             if bird_instance.bird_y - bird_instance.bird_diameter_rel <= 0:
-                print("Bird hit the ground")
-                bird_instance.death()
+                bird_instance.death("ground")
             # Check for collision with sky (top)
             if bird_instance.bird_y + bird_instance.bird_diameter_rel >= 1:
-                print("Bird hit the ground")
-                bird_instance.death()
+                bird_instance.death("ground")
             # Check for collision with pillars
             for pillar_instance in self.pillar_instances:
                 if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
-                    bird_instance.death()
+                    bird_instance.death("pillar")
     
     def remove_dead_birds(self):
         to_be_removed = []
@@ -224,6 +234,8 @@ class Game():
 class Pillar():
     def __init__(self, image_head_top, image_head_bottom, image_body_bottom, image_body_top, canvas, pillar_width, pillar_body_height, gap_size, x_pos_rank, pillar_x_distance):
         
+        self.pillar_x_distance = pillar_x_distance
+
         self.pillar_body_height_px = pillar_body_height
         self.pillar_body_height_rel = self.pillar_body_height_px / canvas.winfo_height()
         
@@ -231,7 +243,7 @@ class Pillar():
         self.pillar_head_size_rel = self.pillar_head_size_px / canvas.winfo_height()
 
         # If this pipe is the closest to the bird (middle of screen)
-        self.active_pipe = False
+        self.active_pillar = False
 
         self.canvas = canvas
         
@@ -263,10 +275,10 @@ class Pillar():
         self.bottom_head_inner_y = self.center_position[1] - self.gap_size / 2
         self.top_head_inner_y = self.center_position[1] + self.gap_size / 2
 
-        print((self.bottom_head_inner_y, self.top_head_inner_y))
-        print((self.bottom_head_inner_y * _canvas_height, self.top_head_inner_y * _canvas_height))
+        #print((self.bottom_head_inner_y, self.top_head_inner_y))
+        #print((self.bottom_head_inner_y * _canvas_height, self.top_head_inner_y * _canvas_height))
 
-        print((_canvas_width, _canvas_height))
+        #print((_canvas_width, _canvas_height))
 
         # top pillar
         self.canvas.moveto(self.canvas_id_top_head,
@@ -289,11 +301,11 @@ class Pillar():
     def randomize_height(self):
         self.center_position[1] = uniform(0.2, 0.8)
     
-    def update_active_pipe_status(self):
-        if self.center_position[0] > 0.5 and self.center_position[0] < (0.5 + self.pillar_body_height_rel):
-            self.active_pipe = True
+    def update_active_pillar_status(self):
+        if self.center_position[0] > (0.5 - self.pillar_head_size_rel) and self.center_position[0] <= (0.5 + self.pillar_x_distance + self.pillar_head_size_rel):
+            self.active_pillar = True
         else:
-            self.active_pipe = False
+            self.active_pillar = False
 
     def check_for_bird_collision(self, bird_y, bird_diameter):     
         # 0.5 = middle of screen
@@ -379,19 +391,16 @@ class Bird():
 
         self.alive = True
 
-    def death(self):
+    def death(self, reason = "unknown"):
         self.alive = False
         self.score -= 1
-        print(f"Bird {self.canvas_id} had died!")
+        print(f"Bird {self.canvas_id} died - reason: {reason}")
 
     def jump(self):
         if self.can_jump:
-            print("Jump")
             self.can_jump = False
             self.updates_since_last_jump = 0
             self.velocity = self.jump_velocity
-        else:
-            print("Can't jump")
 
     def increse_bird_score(self, increment):
         self.score += increment
@@ -408,7 +417,7 @@ class Bird():
         # Make jump avaliable again if enough time passed
         if not self.can_jump:
             if self.updates_since_last_jump > self.updates_between_jumps:
-                print("Jump avaliable")
+                #print("Jump avaliable")
                 self.can_jump = True
     
     
@@ -455,11 +464,48 @@ def check_collision_circle_rectangle(circle_center, circle_radius, rectangle_top
     else:
         return False
 
-if __name__ == "__main__":
+
+
+def run_neat():
+    
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'config.txt')
+
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                            neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                            config_path)
+
+    p = neat.Population(config)
+
+    # In case I want to restart from checkpoint
+    #p = neat.Checkpointer.restore_checkpoint("neat-checkpoint-1")
+
+    p.add_reporter(neat.StdOutReporter(True))
+    stast = neat.StatisticsReporter()
+    p.add_reporter(stast)
+    p.add_reporter(neat.Checkpointer(generation_interval=1)) # after how many generations is checkpoint created
+
+    # Returns best genome after 'n' generations or when fitness hits treshold (default 400?)
+    winner = p.run(eval_genomes, n=50)
+
+
+def eval_genomes(genomes, config):
     app = App()
-    app.start_flappy_bird()
+    app.start_flappy_bird(genomes, config)
 
     #app.engine_loop()
     app.draw_loop()
 
     app.root.mainloop()
+
+
+if __name__ == "__main__":
+    
+    run_neat()
+    #app = App()
+    #app.start_flappy_bird()
+
+    #app.engine_loop()
+    #app.draw_loop()
+
+    #app.root.mainloop()
