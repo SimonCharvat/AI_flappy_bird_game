@@ -4,7 +4,6 @@ from PIL import Image, ImageTk
 from math import ceil, sqrt
 from random import uniform
 import neat
-from time import sleep
 import numpy as np
 
 
