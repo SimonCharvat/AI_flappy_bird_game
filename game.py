@@ -72,6 +72,7 @@ class App():
         self.game.physics_move_all_pillars()
         self.game.order_pillars()
         self.game.make_AI_decision()
+        self.game.remove_dead_birds()
         self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
     
     def low_frequency_loop(self):
@@ -215,14 +216,14 @@ class Game():
         for bird_instance in self.bird_instances:
             # Check for collision with ground (bottom)
             if bird_instance.bird_y - bird_instance.bird_diameter_rel <= 0:
-                bird_instance.death("ground")
+                bird_instance.death(self.canvas, "ground")
             # Check for collision with sky (top)
             if bird_instance.bird_y + bird_instance.bird_diameter_rel >= 1:
-                bird_instance.death("ground")
+                bird_instance.death(self.canvas, "ground")
             # Check for collision with pillars
             for pillar_instance in self.pillar_instances:
                 if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
-                    bird_instance.death("pillar")
+                    bird_instance.death(self.canvas, "pillar")
     
     def remove_dead_birds(self):
         to_be_removed = []
@@ -231,10 +232,10 @@ class Game():
                 to_be_removed.append(i)
         
         if len(to_be_removed) > 0:
-            for index in to_be_removed:
-                self.bird_instances.pop(index)
-                self.network_instances.pop(index)
-                self.genome_instances.pop(index)
+            for i, index in enumerate(to_be_removed):
+                self.bird_instances.pop(index - i)
+                self.network_instances.pop(index - i)
+                self.genome_instances.pop(index - i)
 
                 
         
@@ -335,9 +336,11 @@ class Pillar():
         # 0.5 = middle of screen
         # TODO: bird left and right could be calculated only once for all pillars (pass it as argument of this function)
 
+        # calculating top left corner position of top pillar head
         top_pillar_pos = [self.center_position[0] - self.pillar_dimensions[0] / 2,
                           self.top_head_inner_y + self.pillar_dimensions[1]]
         
+        # calculating top left corner position of bottom pillar head
         bot_pillar_pos = [self.center_position[0] - self.pillar_dimensions[0] / 2,
                           self.bottom_head_inner_y]
 
@@ -349,28 +352,22 @@ class Pillar():
         pillar_right_x = self.center_position[0] + self.pillar_head_size_rel / 2
 
         # if it is even possible to collide on x-axis - optimalizead as it does not have to check collision with every bird
-        if bird_right_x >= pillar_left_x or bird_left_x <= pillar_right_x:
-            """
-            Commented, because check_collision_circle_rectangle can be used universally
-            # if bird fully inside pillar -> only check y-axis collision
-            if bird_left_x >= pillar_left_x and bird_right_x <= pillar_right_x:
-                print("fully between pillars")
-                # top side collision check
-                if bird_y + bird_diameter >= self.top_head_inner_y:
-                    print("Pillar - top hit")
-                    return True
-                # bottom side collision check
-                if bird_y - bird_diameter <= self.bottom_head_inner_y:
-                    print("Pillar - bottom hit")
-                    return True
-                return False
-            else: # if can collide, but must check distance between objects on both axis:
-            """
+        if bird_right_x >= pillar_left_x and bird_left_x <= pillar_right_x:
+            
+            if bird_y < self.bottom_head_inner_y: # check bottom body pillar collision
+                print("bottom")
+                return True
+            if bird_y > self.top_head_inner_y: # check bottom body pillar collision
+                print("top")
+                return True
+            
             top_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, top_pillar_pos, self.pillar_dimensions)
             bot_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, bot_pillar_pos, self.pillar_dimensions)
-                
-            return (top_rectangle_collision or bot_rectangle_collision)
-        else:
+            
+            if (top_rectangle_collision or bot_rectangle_collision):
+                return True
+        
+        else: # if bird is completely outside of pillars hitbox
             return False
         
         #raise ValueError("Collision detection failed - no return")
@@ -415,10 +412,11 @@ class Bird():
 
         self.alive = True
 
-    def death(self, reason = "unknown"):
+    def death(self, canvas, reason = "unknown"):
         self.alive = False
         self.score -= 1
         print(f"Bird {self.canvas_id} died - reason: {reason}")
+        canvas.delete(self.canvas_id)
 
     def jump(self):
         if self.can_jump:
