@@ -27,6 +27,7 @@ class App():
         self.TIME_DRAW_INTERVAL_MS = 17 # 17 ms ~ 60 fps
         self.TIME_ENGINE_INTERVAL_MS = 17
 
+
         # tkinter app root window
         self.root = tk.Tk()
         self.root.title("Flappy bird AI")
@@ -73,24 +74,31 @@ class App():
         self.game.order_pillars()
         self.game.make_AI_decision()
         self.game.remove_dead_birds()
-        self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
+        if self.game.game_running:
+            self.root.after(self.TIME_ENGINE_INTERVAL_MS, self.engine_loop)
+        else:
+            self.root.quit()
     
     def low_frequency_loop(self):
         if self.game_exists:
             self.game.update_score_label()
         time_interval = int(self.TIME_ENGINE_INTERVAL_MS / 3)
-        self.root.after(time_interval, self.low_frequency_loop)
+        if self.game.game_running:
+            self.root.after(time_interval, self.low_frequency_loop)
 
     def draw_loop(self):
         self.game.graphics_update_all_birds()
         self.game.graphics_update_all_pillars()
-        self.root.after(self.TIME_DRAW_INTERVAL_MS, self.draw_loop)
+        if self.game.game_running:
+            self.root.after(self.TIME_DRAW_INTERVAL_MS, self.draw_loop)
 
     def start_flappy_bird(self, genomes, config):
         self.game = Game(self.canvas, self.TIME_ENGINE_INTERVAL_MS, genomes, config, self.label_score)
+        self.draw_loop()
         self.start_engine_loop()
         self.game_exists = True
         #self.game.create_bird_instance()
+        self.root.mainloop()
 
 
 
@@ -98,10 +106,7 @@ class Game():
     
     def __init__(self, canvas, ENGINE_INTERVAL_MS, genomes, config, label_score_widget = None):
         
-        
-        self.bird_instances = []
-        self.network_instances = []
-        self.genome_instances = []
+        self.game_running = True
 
         self.label_score_widget = label_score_widget
         
@@ -122,7 +127,7 @@ class Game():
         self.pillar_distance_px = 3 * self.pillar_width
         self.pillar_distance_rel = self.pillar_distance_px / self.canvas_width
         self.number_of_pillars = 1 + ceil(self.canvas_width / (self.pillar_distance_px + self.pillar_width))
-        self.pillar_gap_size = 0.25 # vertical distance between pillars (as coeficient between 0 and 1)
+        self.pillar_gap_size = 0.3 # vertical distance between pillars (as coeficient between 0 and 1)
         
         self.images = {
             "bird": ImageTk.PhotoImage(Image.open("bird.png").resize((self.bird_size_px, self.bird_size_px), Image.Resampling.LANCZOS)),
@@ -136,6 +141,10 @@ class Game():
             self.create_pillar_instance(i)
             self.pillar_instances[i].update_active_pillar_status()
         
+        # creating neural network
+        self.bird_instances = []
+        self.network_instances = []
+        self.genome_instances = []
 
         for i, (genome_id, genome) in enumerate(genomes):
             net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -153,7 +162,6 @@ class Game():
             top_scores = np.array(sorted(scores, reverse=True)[:min(3, len(scores))])
             top_scores = np.round(top_scores, 3)
             self.label_score_widget.config(text = f"{top_scores}")
-            #self.label_score_widget.pack()
 
     def make_AI_decision(self):
         active_pillar_index = None
@@ -216,10 +224,10 @@ class Game():
         for bird_instance in self.bird_instances:
             # Check for collision with ground (bottom)
             if bird_instance.bird_y - bird_instance.bird_diameter_rel <= 0:
-                bird_instance.death(self.canvas, "ground")
+                bird_instance.death(self.canvas, "floor")
             # Check for collision with sky (top)
             if bird_instance.bird_y + bird_instance.bird_diameter_rel >= 1:
-                bird_instance.death(self.canvas, "ground")
+                bird_instance.death(self.canvas, "ceiling")
             # Check for collision with pillars
             for pillar_instance in self.pillar_instances:
                 if pillar_instance.check_for_bird_collision(bird_instance.bird_y, bird_instance.bird_diameter_rel): # returns bool
@@ -233,9 +241,15 @@ class Game():
         
         if len(to_be_removed) > 0:
             for i, index in enumerate(to_be_removed):
+                self.genome_instances[index - i].fitness = self.bird_instances[index - i].score
+                
                 self.bird_instances.pop(index - i)
                 self.network_instances.pop(index - i)
                 self.genome_instances.pop(index - i)
+        
+        if len(self.bird_instances) == 0:
+            self.game_running = False
+            print("-- All genomes died --")
 
                 
         
@@ -355,24 +369,23 @@ class Pillar():
         if bird_right_x >= pillar_left_x and bird_left_x <= pillar_right_x:
             
             if bird_y < self.bottom_head_inner_y: # check bottom body pillar collision
-                print("bottom")
+                print(f"top head inner\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\npillar:{pillar_left_x, pillar_right_x}\ntop, bottom inner:{self.top_head_inner_y, self.bottom_head_inner_y}")
                 return True
             if bird_y > self.top_head_inner_y: # check bottom body pillar collision
-                print("top")
+                print(f"top head inner\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\npillar:{pillar_left_x, pillar_right_x}\ntop, bottom inner:{self.top_head_inner_y, self.bottom_head_inner_y}")
                 return True
             
             top_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, top_pillar_pos, self.pillar_dimensions)
             bot_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, bot_pillar_pos, self.pillar_dimensions)
             
             if (top_rectangle_collision or bot_rectangle_collision):
+                print(f"top head inner\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\npillar:{pillar_left_x, pillar_right_x}\ntop, bottom inner:{self.top_head_inner_y, self.bottom_head_inner_y}")
                 return True
-        
+            else:
+                return False
         else: # if bird is completely outside of pillars hitbox
             return False
-        
-        #raise ValueError("Collision detection failed - no return")
-        
-        #print(f"Collision detected with pillar {(self.canvas_id_bottom_head, self.canvas_id_top_head)}")
+
         
         
             
@@ -490,6 +503,8 @@ def check_collision_circle_rectangle(circle_center, circle_radius, rectangle_top
 
 def run_neat():
     
+    app = App()
+
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config.txt')
 
@@ -508,17 +523,7 @@ def run_neat():
     p.add_reporter(neat.Checkpointer(generation_interval=1)) # after how many generations is checkpoint created
 
     # Returns best genome after 'n' generations or when fitness hits treshold (default 400?)
-    winner = p.run(eval_genomes, n=50)
-
-
-def eval_genomes(genomes, config):
-    app = App()
-    app.start_flappy_bird(genomes, config)
-
-    #app.engine_loop()
-    app.draw_loop()
-
-    app.root.mainloop()
+    winner = p.run(app.start_flappy_bird, n=20)
 
 
 if __name__ == "__main__":
