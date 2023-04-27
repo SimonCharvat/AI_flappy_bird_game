@@ -210,7 +210,6 @@ class Game():
     def physics_move_all_pillars(self):
         for pillar_instance in self.pillar_instances:
             pillar_instance.center_position[0] -= self.scroll_speed_per_tick
-            #print(pillar_instance.center_position)
     
     def graphics_update_all_birds(self):
         for instance in self.bird_instances:
@@ -226,7 +225,7 @@ class Game():
             if bird_instance.bird_y - bird_instance.bird_diameter_rel <= 0:
                 bird_instance.death(self.canvas, "floor")
             # Check for collision with sky (top)
-            if bird_instance.bird_y + bird_instance.bird_diameter_rel >= 1:
+            if bird_instance.bird_y >= 1:
                 bird_instance.death(self.canvas, "ceiling")
             # Check for collision with pillars
             for pillar_instance in self.pillar_instances:
@@ -347,6 +346,7 @@ class Pillar():
             self.active_pillar = False
 
     def check_for_bird_collision(self, bird_y, bird_diameter):     
+        check_collision_pring_debug = False
         # 0.5 = middle of screen
         # TODO: bird left and right could be calculated only once for all pillars (pass it as argument of this function)
 
@@ -368,18 +368,21 @@ class Pillar():
         # if it is even possible to collide on x-axis - optimalizead as it does not have to check collision with every bird
         if bird_right_x >= pillar_left_x and bird_left_x <= pillar_right_x:
             
-            if bird_y < self.bottom_head_inner_y: # check bottom body pillar collision
-                print(f"top head inner\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\npillar:{pillar_left_x, pillar_right_x}\ntop, bottom inner:{self.top_head_inner_y, self.bottom_head_inner_y}")
+            if bird_y - bird_diameter < self.bottom_head_inner_y: # check bottom body pillar collision
+                if check_collision_pring_debug:
+                    print(f"Bottom body collision:\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\nPillar x:{pillar_left_x, pillar_right_x}\nTop inner y:{self.top_head_inner_y}\nBottom inner y:{self.bottom_head_inner_y}\n")
                 return True
-            if bird_y > self.top_head_inner_y: # check bottom body pillar collision
-                print(f"top head inner\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\npillar:{pillar_left_x, pillar_right_x}\ntop, bottom inner:{self.top_head_inner_y, self.bottom_head_inner_y}")
+            if bird_y + bird_diameter > self.top_head_inner_y: # check top body pillar collision
+                if check_collision_pring_debug:
+                    print(f"Top body collision:\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\nPillar x:{pillar_left_x, pillar_right_x}\nTop inner y:{self.top_head_inner_y}\nBottom inner y:{self.bottom_head_inner_y}\n")
                 return True
             
-            top_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, top_pillar_pos, self.pillar_dimensions)
-            bot_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter / 2, bot_pillar_pos, self.pillar_dimensions)
+            top_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter, top_pillar_pos, self.pillar_dimensions)
+            bot_rectangle_collision = check_collision_circle_rectangle([0.5, bird_y], bird_diameter, bot_pillar_pos, self.pillar_dimensions)
             
             if (top_rectangle_collision or bot_rectangle_collision):
-                print(f"top head inner\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\npillar:{pillar_left_x, pillar_right_x}\ntop, bottom inner:{self.top_head_inner_y, self.bottom_head_inner_y}")
+                if check_collision_pring_debug:
+                    print(f"Inner collision (Top, Bottom): {(top_rectangle_collision, bot_rectangle_collision)}\nbird x:{(bird_left_x, bird_right_x)}, y:{bird_y}\nPillar x:{pillar_left_x, pillar_right_x}\nTop inner y:{self.top_head_inner_y}\nBottom inner y:{self.bottom_head_inner_y}\n")
                 return True
             else:
                 return False
@@ -488,7 +491,7 @@ def check_collision_circle_rectangle(circle_center, circle_radius, rectangle_top
 
     # Find the closest point to the circle within the rectangle
     closest_x = max(rectangle_top_left[0], min(circle_center[0], rectangle_top_left[0] + rectangle_dim[0]))
-    closest_y = max(rectangle_top_left[1], min(circle_center[1], rectangle_top_left[1] + rectangle_dim[1]))
+    closest_y = min(rectangle_top_left[1], max(circle_center[1], rectangle_top_left[1] + rectangle_dim[1]))
 
     # Calculate the distance between the closest point and the circle's center
     distance = sqrt((closest_x - circle_center[0]) ** 2 + (closest_y - circle_center[1]) ** 2)
